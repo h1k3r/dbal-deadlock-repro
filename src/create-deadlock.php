@@ -3,44 +3,54 @@
 declare(strict_types=1);
 
 use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\DriverManager;
+use Symfony\Component\Process\Process;
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/create-connection.php';
 
 $conn = get_connection();
-//drop_table($conn);
 create_table($conn);
-insert_users($conn);
 
-function get_connection(): Connection
-{
-    return DriverManager::getConnection([
-        'driver' => 'pdo_sqlite',
-        'path' => __DIR__ . '/database.sqlite'
-    ]);
+$proc1 = new Process(['php', __DIR__ . '/update-line.php', 'process_1']);
+$proc2 = new Process(['php', __DIR__ . '/update-line.php', 'process_2']);
+$proc1->start();
+$proc2->start();
+
+while ($proc1->isRunning() || $proc2->isRunning()) {
+    usleep(100000);
 }
 
-function drop_table(Connection $conn): void
-{
-    $sql = "DROP TABLE IF EXISTS users";
-    $conn->executeStatement($sql);
+if (!$proc1->isSuccessful() || !$proc2->isSuccessful()) {
+    dump('error when releasing savepoint !');
+
+    if (!$proc1->isSuccessful()) {
+        dump("output process 1: {$proc1->getOutput()}\n{$proc1->getErrorOutput()}");
+    }
+
+    if (!$proc2->isSuccessful()) {
+        dump("output process 2: {$proc2->getOutput()}\n{$proc2->getErrorOutput()}");
+    }
 }
 
 function create_table(Connection $conn): void
 {
-    $sql = "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)";
+    $sql = "CREATE TABLE IF NOT EXISTS test_table ( id INT PRIMARY KEY, value INT);";
+    $conn->executeStatement($sql);
+
+    $count = $conn->executeQuery('SELECT count(*) FROM test_table')->fetchOne();
+    if ($count > 0) {
+        return;
+    }
+
+    $sql = "INSERT INTO test_table (id, value) VALUES (1, 100), (2, 200);";
     $conn->executeStatement($sql);
 }
 
-function insert_users(Connection $conn): void
+function dump_data(Connection $conn): void
 {
-    $countUsers = $conn->executeQuery('SELECT count(*) FROM users')->fetchOne();
+    $users = $conn->executeQuery('SELECT * FROM test_table')->fetchAllAssociative();
 
-    if ($countUsers > 0) {
-        return;
-    }
-    $conn->insert('users', ['id' => 1, 'name' => 'John Doe']);
-    $conn->insert('users', ['id' => 2, 'name' => 'Jane Doe']);
+    dump($users);
 }
 
 
