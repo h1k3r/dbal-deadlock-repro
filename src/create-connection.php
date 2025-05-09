@@ -10,12 +10,11 @@ function get_connection(): Connection
 {
     $dsnParser = new DsnParser();
     $connectionParams = $dsnParser
-        ->parse('mysql://root:1234@127.0.0.1:3307/repro_dbal?serverVersion=5.7.42')
+        ->parse('mysql://shopware:shopware@127.0.0.1/shopware_test')
     ;
     $connectionParams['driver'] = 'pdo_mysql';
 
     $connection = DriverManager::getConnection($connectionParams);
-    $connection->setNestTransactionsWithSavepoints(true);
 
     return $connection;
 }
